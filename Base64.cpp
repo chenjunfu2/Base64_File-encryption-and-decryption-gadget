@@ -21,7 +21,14 @@ int main(int argc, char *argv[])
 
 	//初始化类
 	Base64 b64;
-	if (GetLastError() == ERROR_ALREADY_EXISTS)//打开成功
+	if (b64.GetLastError() != Base64::ErrorCode::CLASS_NO_ERROR)
+	{
+		puts(b64.GetErrorReason(b64.GetLastError()));
+		return -1;
+	}
+
+	//打开成功
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
 		DWORD dwReadBytes;
 
