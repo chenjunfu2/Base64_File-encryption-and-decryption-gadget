@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 		if (!b64.SetBaseCode(ucBase64Code))
 		{
 			CloseHandle(hConfigFile);
-			puts("加密串内出现重复字符!");
+			puts(b64.GetErrorReason(b64.GetLastError()));
 			return -1;
 		}
 
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 		if (!b64.SetFullCode(ucFullCode))
 		{
 			CloseHandle(hConfigFile);
-			puts("填充字符已存在于加密串中!");
+			puts(b64.GetErrorReason(b64.GetLastError()));
 			return -1;
 		}
 	}
@@ -232,14 +232,14 @@ int main(int argc, char *argv[])
 
 		//计时并加密
 		ullStartTime = GetTickCount64();
-		bool bOperationSuccess = b64.EnCode(lpReadMem, liFileSize.QuadPart, pucData);
+		bool bOperationSuccess = b64.EnCode(lpReadMem, liFileSize.QuadPart, pucData, ullDataSize);
 		ullDuringOperation = GetTickCount64() - ullStartTime;
 
 		if (!bOperationSuccess)
 		{
 			CloseHandle(hWriteFile);
 			UnmapViewOfFile(lpReadMem);
-			puts("程序状态错误,解密失败!");
+			puts(b64.GetErrorReason(b64.GetLastError()));
 			return -1;
 		}
 
@@ -253,14 +253,14 @@ int main(int argc, char *argv[])
 
 		//计时并解密
 		ullStartTime = GetTickCount64();
-		bool bOperationSuccess = b64.DeCode((Base64::PCUCHAR)lpReadMem, liFileSize.QuadPart, pucData);
+		bool bOperationSuccess = b64.DeCode((Base64::PCUCHAR)lpReadMem, liFileSize.QuadPart, pucData, ullDataSize);
 		ullDuringOperation = GetTickCount64() - ullStartTime;
 
 		if (!bOperationSuccess)
 		{
 			CloseHandle(hWriteFile);
 			UnmapViewOfFile(lpReadMem);
-			puts("文件内容有误,解密失败!");
+			puts(b64.GetErrorReason(b64.GetLastError()));
 			return -1;
 		}
 
@@ -268,17 +268,33 @@ int main(int argc, char *argv[])
 	}
 
 	//写入文件
-	DWORD hWriteByte;
-	ullStartTime = GetTickCount64();
-	if (!WriteFile(hWriteFile, pucData, ullDataSize, &hWriteByte, NULL) || hWriteByte != ullDataSize)
-	{
-		free(pucData);
-		pucData = NULL;
+	DWORD dwWriteByte;
+	DWORD dwWriteDataByte;
 
-		CloseHandle(hWriteFile);
-		UnmapViewOfFile(lpReadMem);
-		puts("文件写入失败!");
-		return -1;
+	ullStartTime = GetTickCount64();
+	while (ullDataSize != 0)//数据过大则分多次写入
+	{
+		if (ullDataSize >= MAXDWORD)//数据大于单次最大写入字节则写入最大写入字节
+		{
+			dwWriteDataByte = MAXDWORD;
+		}
+		else//直到数据小于最大写入字节时写入剩余数据
+		{
+			dwWriteDataByte = (DWORD)ullDataSize;
+		}
+
+		if (!WriteFile(hWriteFile, pucData, dwWriteDataByte, &dwWriteByte, NULL) || dwWriteByte != dwWriteDataByte)
+		{
+			free(pucData);
+			pucData = NULL;
+
+			CloseHandle(hWriteFile);
+			UnmapViewOfFile(lpReadMem);
+			puts("文件写入失败!");
+			return -1;
+		}
+
+		ullDataSize -= dwWriteDataByte;
 	}
 	ullDuringOperation = GetTickCount64() - ullStartTime;
 	printf("文件写入成功,用时:%lld毫秒(约为%.2lf秒)\n", ullDuringOperation, (long double)ullDuringOperation / (long double)1000.00);
